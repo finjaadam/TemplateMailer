@@ -18,7 +18,7 @@
     },
     "require": {
         "neos/flow": "^8.3 || ^9.0 || dev-main",
-        "neos/swiftmailer": "^7.0 || dev-master",
+        "neos/swiftmailer": "^7.4 || dev-master",
         "pelago/emogrifier": "^6.0 || ^7.0"
     },
     "autoload": {
