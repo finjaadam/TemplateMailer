@@ -9,12 +9,13 @@ This package works in Neos CMS and Flow and provides the following functionality
 ## Compatibility and Maintenance
 Sandstorm.TemplateMailer is currently being maintained for the following versions:
 
-| Neos / Flow Version        | Sandstorm.TemplateMailer Version | Maintained |
-|----------------------------|----------------------------------|------------|
-| Flow 8.x                   | 2.x                              | Yes        |
-| Flow 6.x, Flow 7.x         | 2.x                              | Yes        |
-| Neos 4.x, Flow 5.x         | 1.x                              | Yes        |
-| Neos 3.x, Flow 4.x         | 1.x                              | Yes        |
+| Neos / Flow Version | Sandstorm.TemplateMailer Version | Maintained |
+|---------------------|----------------------------------|------------|
+| Flow 9.x            | >=2.4                            | Yes        |
+| Flow 8.x            | 2.x                              | Yes        |
+| Flow 6.x, Flow 7.x  | 2.x                              | Yes        |
+| Neos 4.x, Flow 5.x  | 1.x                              | Yes        |
+| Neos 3.x, Flow 4.x  | 1.x                              | Yes        |
 
 # Configuration and Usage
 
@@ -78,7 +79,7 @@ Sandstorm:
 
 ### Logging errors and sent mails
 You can control how TemplateMailer handles errors and also successfully sent mails via the two parameters in `logging`.
-Via the "sendingErrors" config option, you can specifiy what templateMailer should do if the email could not be sent correctly. 
+Via the "sendingErrors" config option, you can specifiy what templateMailer should do if the email could not be sent correctly.
 There are three options:
 * 'throw' -> throws the exception which came from SwiftMailer if sending failed
 * 'log' -> logs a message to the system log if sending failed
@@ -93,10 +94,10 @@ Sandstorm:
       sendingErrors: 'log'
       sendingSuccess: 'log'
 ```
-      
+
 ## Using the package
 Create an "EmailTemplates" folder in your package's `Resources/Private` folder. In it, create as many email templates as
-you want. 
+you want.
 
 ***IMPORTANT:*** You _must_ create a .txt and an .html file with the same name for each template-based mail you want to send.
 
@@ -115,7 +116,7 @@ $this->emailService->sendTemplateEmail(
 ```
 
 ### Globally configured custom sender address
-You can use a different configured sender address as well as pass variables to the template. 
+You can use a different configured sender address as well as pass variables to the template.
 You need to have configured the sender email 'mysender' before.
 ```PHP
 $this->emailService->sendTemplateEmail(
@@ -131,7 +132,7 @@ $this->emailService->sendTemplateEmail(
 ```
 
 ### Dynamic sender address
-If you pass an array to the `sendTemplateEmail()` method, we'll pass it right through to SwiftMailer so you can 
+If you pass an array to the `sendTemplateEmail()` method, we'll pass it right through to SwiftMailer so you can
 use sender email addresses that haven't been configured before.
 ```PHP
 $this->emailService->sendTemplateEmail(
