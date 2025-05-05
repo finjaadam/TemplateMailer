@@ -17,13 +17,18 @@
         "source": "https://github.com/sandstorm/TemplateMailer"
     },
     "require": {
-        "neos/flow": "^7.3 || ^8.0 || dev-main",
-        "neos/swiftmailer": "^7.0",
+        "neos/flow": "^8.3 || ^9.0 || dev-main",
+        "neos/swiftmailer": "^7.0 || dev-master",
         "pelago/emogrifier": "^6.0 || ^7.0"
     },
     "autoload": {
         "psr-4": {
             "Sandstorm\\TemplateMailer\\": "Classes"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "neos/composer-plugin": true
         }
     }
 }
