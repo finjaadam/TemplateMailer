@@ -11,7 +11,7 @@ Sandstorm.TemplateMailer is currently being maintained for the following version
 
 | Neos / Flow Version | Sandstorm.TemplateMailer Version | Maintained |
 |---------------------|----------------------------------|------------|
-| Flow 9.x            | 2.x                              | Yes        |
+| Flow 9.x            | >=2.4                            | Yes        |
 | Flow 8.x            | 2.x                              | Yes        |
 | Flow 6.x, Flow 7.x  | 2.x                              | Yes        |
 | Neos 4.x, Flow 5.x  | 1.x                              | Yes        |
