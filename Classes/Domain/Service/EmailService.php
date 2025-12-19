@@ -1,4 +1,5 @@
 <?php
+
 namespace Sandstorm\TemplateMailer\Domain\Service;
 
 use Neos\Flow\Annotations as Flow;
@@ -6,7 +7,9 @@ use Neos\Flow\Configuration\ConfigurationManager;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\FluidAdaptor\View\StandaloneView;
-use Neos\SwiftMailer\Message;
+use Neos\SymfonyMailer\Service\MailerService;
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Address;
 use Pelago\Emogrifier\CssInliner;
 use Psr\Log\LoggerInterface;
 use Sandstorm\TemplateMailer\Exception;
@@ -37,6 +40,12 @@ class EmailService
      * @var ConfigurationManager
      */
     protected $configurationManager;
+
+    /**
+     * @Flow\Inject
+     * @var MailerService
+     */
+    protected $mailerService;
 
     /**
      * @var array
@@ -100,8 +109,7 @@ class EmailService
         array $attachments = [],
         $replyTo = null,
         array $additionalHeaders = []
-    ): bool
-    {
+    ): bool {
         $targetPackage = $this->findFirstPackageContainingEmailTemplate($templateName);
         $variables = $this->addDefaultTemplateVariables($variables);
         $plaintextBody = $this->renderEmailBody($templateName, $targetPackage, 'txt', $variables);
@@ -109,33 +117,38 @@ class EmailService
 
         $senderAddress = $this->resolveSenderAddress($sender);
 
-        $mail = new Message();
-        $mail->setFrom($senderAddress)
-            ->setTo($recipient)
-            ->setCc($cc)
-            ->setBcc($bcc)
-            ->setSubject($subject)
-            ->setBody($plaintextBody)
-            ->addPart($htmlBody, 'text/html');
+        $email = new Email();
+        $email->from(...$this->convertToAddresses($senderAddress))
+            ->to(...$this->convertToAddresses($recipient))
+            ->cc(...$this->convertToAddresses($cc))
+            ->bcc(...$this->convertToAddresses($bcc))
+            ->subject($subject)
+            ->text($plaintextBody)
+            ->html($htmlBody);
 
         $replyToAddresses = $this->resolveReplyToAddress($replyTo);
         if (count($replyToAddresses) > 0) {
-            $mail->setReplyTo($replyToAddresses);
+            $email->replyTo(...$this->convertToAddresses($replyToAddresses));
         }
 
         if (count($additionalHeaders) > 0) {
+            $headers = $email->getHeaders();
             foreach ($additionalHeaders as $additionalHeaderName => $additionalHeaderValue) {
-                $mail->getHeaders()->addTextHeader($additionalHeaderName, $additionalHeaderValue);
+                $headers->addTextHeader($additionalHeaderName, $additionalHeaderValue);
             }
         }
 
         if (count($attachments) > 0) {
             foreach ($attachments as $attachment) {
-                $mail->attach(new \Swift_Attachment($attachment['data'], $attachment['filename'], $attachment['contentType']));
+                $email->attach(
+                    $attachment['data'],
+                    $attachment['filename'],
+                    $attachment['contentType']
+                );
             }
         }
 
-        return $this->sendMail($mail);
+        return $this->sendMail($email);
     }
 
     /**
@@ -226,12 +239,17 @@ class EmailService
             return $addressKeyOrAddresses;
         }
         if (!isset($addressesConfig[$addressKeyOrAddresses])) {
-            throw new Exception(sprintf('The given address string was not found in config. Please check config path "Sandstorm.TemplateMailer.%s.%s".', $description, $addressKeyOrAddresses),
-                1489787274);
+            throw new Exception(
+                sprintf('The given address string was not found in config. Please check config path "Sandstorm.TemplateMailer.%s.%s".', $description, $addressKeyOrAddresses),
+                1489787274
+            );
         }
         if (!isset($addressesConfig[$addressKeyOrAddresses]['name']) || !isset($addressesConfig[$addressKeyOrAddresses]['address'])) {
-            throw new Exception(sprintf('The given sender is not correctly configured - "name" or "address" are missing. Please check config path "Sandstorm.TemplateMailer.%s.%s".',
-                $description, $addressKeyOrAddresses), 1489787274);
+            throw new Exception(sprintf(
+                'The given sender is not correctly configured - "name" or "address" are missing. Please check config path "Sandstorm.TemplateMailer.%s.%s".',
+                $description,
+                $addressKeyOrAddresses
+            ), 1489787274);
         }
         return [$addressesConfig[$addressKeyOrAddresses]['address'] => $addressesConfig[$addressKeyOrAddresses]['name']];
     }
@@ -244,8 +262,10 @@ class EmailService
     protected function findFirstPackageContainingEmailTemplate(string $templateName): string
     {
         if (count($this->templatePackages) === 0) {
-            throw new Exception('No packages to load email templates from were registered. Please set the config path "Sandstorm.TemplateMailer.templatePackages" correctly!',
-                1489787278);
+            throw new Exception(
+                'No packages to load email templates from were registered. Please set the config path "Sandstorm.TemplateMailer.templatePackages" correctly!',
+                1489787278
+            );
         }
 
         ksort($this->templatePackages);
@@ -255,26 +275,54 @@ class EmailService
                 return $package;
             }
         }
-        throw new Exception(sprintf('No package containing an email template named "%s" was found. Checked packages: "%s"', $templateName, implode(', ', $this->templatePackages)),
-            1489787275);
+        throw new Exception(
+            sprintf('No package containing an email template named "%s" was found. Checked packages: "%s"', $templateName, implode(', ', $this->templatePackages)),
+            1489787275
+        );
+    }
+
+    /**
+     * Convert array of email addresses to Address objects for Symfony Mailer
+     *
+     * @param array $addresses Array in format ['email@example.com' => 'Name', 'other@example.com'] or ['email@example.com']
+     * @return array Array of Address objects or strings
+     */
+    protected function convertToAddresses(array $addresses): array
+    {
+        $result = [];
+        foreach ($addresses as $key => $value) {
+            if (is_numeric($key)) {
+                // Simple email address without name
+                $result[] = $value;
+            } else {
+                // Email address with name
+                $result[] = new Address($key, $value);
+            }
+        }
+        return $result;
     }
 
     /**
      * Sends a mail and logs or throws any errors, depending on configuration
      *
-     * @param Message $mail
+     * @param Email $email
      * @return boolean TRUE on success, otherwise FALSE
      * @throws \Exception
      */
-    protected function sendMail(Message $mail): bool
+    protected function sendMail(Email $email): bool
     {
-        $allRecipients = $mail->getTo() + $mail->getCc() + $mail->getBcc();
-        $totalNumberOfRecipients = count($allRecipients);
-        $actualNumberOfRecipients = 0;
+        $allRecipients = array_merge(
+            $email->getTo(),
+            $email->getCc(),
+            $email->getBcc()
+        );
         $exceptionMessage = '';
+        $success = false;
 
         try {
-            $actualNumberOfRecipients = $mail->send();
+            $mailer = $this->mailerService->getMailer();
+            $mailer->send($email);
+            $success = true;
         } catch (\Exception $e) {
             $exceptionMessage = $e->getMessage();
             if ($this->logSendingErrors === self::LOG_LEVEL_LOG) {
@@ -285,25 +333,27 @@ class EmailService
         }
 
         $emailInfo = [
-            'recipients' => array_keys($mail->getTo() + $mail->getCc() + $mail->getBcc()),
-            'failedRecipients' => $mail->getFailedRecipients(),
-            'subject' => $mail->getSubject(),
-            'id' => (string)$mail->getHeaders()->get('Message-ID')
+            'recipients' => array_map(function ($address) {
+                return $address instanceof Address ? $address->getAddress() : $address;
+            }, $allRecipients),
+            'subject' => $email->getSubject(),
+            'id' => $email->getHeaders()->get('Message-ID')?->getBodyAsString() ?? 'unknown'
         ];
         if (strlen($exceptionMessage) > 0) {
             $emailInfo['exception'] = $exceptionMessage;
         }
 
-        if ($actualNumberOfRecipients < $totalNumberOfRecipients && $this->logSendingErrors === self::LOG_LEVEL_LOG) {
+        if (!$success && $this->logSendingErrors === self::LOG_LEVEL_LOG) {
             $this->systemLogger->error(
-                sprintf('Could not send an email to all given recipients. Given %s, sent to %s', $totalNumberOfRecipients, $actualNumberOfRecipients),
-                array_merge($emailInfo, LogEnvironment::fromMethodName(__METHOD__)));
+                'Could not send email.',
+                array_merge($emailInfo, LogEnvironment::fromMethodName(__METHOD__))
+            );
             return false;
         }
 
         if ($this->logSendingSuccess === self::LOG_LEVEL_LOG) {
             $this->systemLogger->info('Email sent successfully.', array_merge($emailInfo, LogEnvironment::fromMethodName(__METHOD__)));
         }
-        return true;
+        return $success;
     }
 }
